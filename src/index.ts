@@ -20,7 +20,7 @@ export function createState<T>(initialValue: T): State<T>;
 export function createState<T>(initialValue: State<T>): State<T>;
 export function createState<T>(callback: () => T, dependens: Array<State<any>>): State<T>;
 export function createState<T>(arg1: (() => T) | T | State<T>, arg2?: undefined | Array<State<any>>): State<T> {
-  return (arg1 != null && typeof arg1 == "object" && (arg1 as any)[Value] != null) ? arg1 as State<T> : (typeof arg1 == "function" && arg1 instanceof Function && arg2 !== undefined ? createStateFromCallback<T>(arg1, arg2) : createStateFromInitValue<T>(arg1 as unknown as T));
+  return (arg1 != null && typeof arg1 == "object" && (arg1 as any)[Value] != null) ? arg1 as State<T> : (typeof arg1 == "function" && arg1 instanceof Function && arg2 !== undefined ? createStateFromCallback<T>(arg1 as (() => T), arg2) : createStateFromInitValue<T>(arg1 as unknown as T));
 }
 
 // function createStateFromInitValueWithParent<T>(value: T, parent?: any): State<T> {
