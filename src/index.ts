@@ -31,7 +31,7 @@ function createStateFromInitValue<T>(value: T): State<T> {
     // Object.entries(value).forEach(([key, keyValue]) => target[key] = (keyValue != null && keyValue[Value] != null) ? applyStateWithParent(keyValue, { callChildModified: (newValue: any, oldValue: any) => callChildModified(newValue, key, oldValue) }) : createStateFromInitValueWithParent(keyValue, { callChildModified: (newValue: any, oldValue: any) => callChildModified(newValue, key, oldValue) }));
     // Object.entries(value).forEach(([key, keyValue]) => target[key] = (keyValue != null && keyValue[Value] != null) ? keyValue : createStateFromInitValue(keyValue));
     // Object.keys(value).forEach(_ => (value as any)[_] = (value as any)[_][Value] == null ? (value as any)[_] : (value as any)[_][Value]);
-    Object.entries(value).forEach(([key, keyValue]) => {
+    Object.entries(value as Object).forEach(([key, keyValue]) => {
       if (keyValue != null && keyValue[Value] != null) {
         target[key] = keyValue;
         (value as any)[key] = keyValue[Value];
