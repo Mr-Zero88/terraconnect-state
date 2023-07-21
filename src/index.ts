@@ -226,3 +226,7 @@ function createEvent<T extends (...args: Array<any>) => any>(name: string) {
     callback
   ] as [Event<T>, typeof callback];
 }
+
+export function isState(value: unknown): value is State<unknown> {
+  return value != null && typeof value == "object" && Value in value;
+}
