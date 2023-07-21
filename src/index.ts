@@ -132,17 +132,22 @@ function createStateFromInitValue<T>(value: T): State<T> {
       }
       else
         target[key] = createStateFromInitValue(keyValue);
-      target[key][Modified].on((newValue: any, oldValue: any) => target[Value][key] = target[key][PreserveState] == null ? target[key][Value] : target[Value][key]);
-      target[key][ChildModified].on((newValue: any, _key: any, oldValue: any) => target[Value][key] = oldValue === undefined ? target[Value][key] : target[key][PreserveState] == null ? target[key][Value] : target[Value][key]);
-      target[key][Modified].on((newValue: any, oldValue: any) => callChildModified(newValue, key, oldValue));
-      target[key][ChildModified].on((newValue: any, _key: any, oldValue: any) => callChildModified(newValue, key + '.' + _key, oldValue));
+
+      target[key][Modified].on((newValue: any, oldValue: any) => {
+        target[Value][key] = target[key][PreserveState] == null ? target[key][Value] : target[Value][key];
+        callChildModified(newValue, key, oldValue);
+      });
+      target[key][ChildModified].on((newValue: any, _key: any, oldValue: any) => {
+        target[Value][key] = oldValue === undefined ? target[Value][key] : target[key][PreserveState] == null ? target[key][Value] : target[Value][key];
+        callChildModified(newValue, key + '.' + _key, oldValue);
+      });
     });
   }
   return new Proxy(target, {
     get: (target, key) => {
       if (key === Value)
         callGet();
-      if (key == Value || key == Get || key == Set || key == Modified || key == ChildModified || target[key] != null)
+      if (key == Value || key == Get || key == Set || key == Modified || key == ChildModified || key == PreserveState || target[key] != null)
         return target[key];
       if (Array.isArray(target[Value]) && typeof key == "string" && Object.keys(arrayFuctions).includes(key))
         return arrayFuctions[key](target, { callGet, callSet, callModified, callChildModified });
@@ -167,10 +172,14 @@ function createStateFromInitValue<T>(value: T): State<T> {
           if (target[key] == null) {
             if ((keyValue as any)[Value] == null) {
               target[key] = createStateFromInitValue(keyValue);
-              target[key][Modified].on((newValue: any, oldValue: any) => target[Value][key] = target[key][PreserveState] == null ? target[key][Value] : target[Value][key]);
-              target[key][ChildModified].on((newValue: any, _key: any, oldValue: any) => target[Value][key] = oldValue === undefined ? target[Value][key] : target[key][PreserveState] == null ? target[key][Value] : target[Value][key]);
-              target[key][Modified].on((newValue: any, oldValue: any) => callChildModified(newValue, key, oldValue));
-              target[key][ChildModified].on((newValue: any, _key: any, oldValue: any) => callChildModified(newValue, key + '.' + _key, oldValue));
+              target[key][Modified].on((newValue: any, oldValue: any) => {
+                target[Value][key] = target[key][PreserveState] == null ? target[key][Value] : target[Value][key];
+                callChildModified(newValue, key, oldValue);
+              });
+              target[key][ChildModified].on((newValue: any, _key: any, oldValue: any) => {
+                target[Value][key] = oldValue === undefined ? target[Value][key] : target[key][PreserveState] == null ? target[key][Value] : target[Value][key];
+                callChildModified(newValue, key + '.' + _key, oldValue);
+              });
             } else
               target[key] = (keyValue as any)[key];
             callChildModified(keyValue as any, key, undefined as any);
