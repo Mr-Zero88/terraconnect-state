@@ -12,16 +12,26 @@ export type ChildModifiedEvent<T> = (newValue: T[any], key: number | string | sy
 export type Event<T> = { on: (callback: T) => void, off: (callback: T) => void, once: (callback: T) => void };
 export type EventCallback<T extends (...args: Array<any>) => any> = (...args: Parameters<T>) => Array<ReturnType<T>>;
 export type StateSymboles<T> = { [Value]: T, [Get]: Event<GetEvent>, [Set]: Event<SetEvent<T>>, [Modified]: Event<ModifiedEvent<T>>, [ChildModified]: Event<ChildModifiedEvent<T>>, [PreserveState]?: boolean }
-export type complexTypes = Element | HTMLElement;
-export type customArrayMethods<T extends Array<any>> = { reduce: { [Value]: typeof Array.prototype.reduce<T> }, push: { [Value]: (...items: T) => number }, pop: { [Value]: typeof Array.prototype.pop }, map: { [Value]: typeof Array.prototype.map<T> }, forEach: { [Value]: (callbackfn: (value: State<T[any]>, index: number, array: T) => void, thisArg?: any) => void } };
-export type StateChildren<T> = (T extends Array<any> ? ({ [P in keyof T]: State<T[P]> } & customArrayMethods<T>) : (T extends { [key: string | number | symbol]: any } ? T extends complexTypes ? {} : { [P in keyof T]: State<T[P]> } : {}));
+export type push<T extends Array<unknown>> = (...items: T) => number;
+export type pop<T extends Array<unknown>> = () => T | undefined;
+export type forEach<T extends Array<unknown>> = (callbackfn: (value: State<T[number]>, index: number, array: T) => void, thisArg?: any) => void;
+export type reduce<T extends Array<unknown>> = <U>(callbackfn: (previousValue: U, currentValue: State<T>, currentIndex: number, array: T[]) => U, initialValue?: U) => State<U>;
+export type map<T extends Array<unknown>> = <U extends Array<unknown>>(callbackfn: (value: State<T[number]>, index: number, array: T) => U[number], thisArg?: any) => State<U>;
+export type filter<T extends Array<unknown>> = <S extends Array<unknown>>(predicate: (value: State<T[number]>, index: number, array: T) => value is State<S[number]>, thisArg?: any) => State<S>;
+export type wrapInValue<T> = { [K in keyof T]: { [Value]: T[K] } };
+export type customArrayMethods<T extends Array<unknown>> = { reduce: reduce<T>, push: push<T>, pop: pop<T>, map: map<T>, filter: filter<T>, forEach: forEach<T> };
+export type StateObject<T> = { [key: string | number | symbol]: T };
+export type StateArrayChildren<T extends Array<unknown>> = { [P in keyof T]: (P extends keyof typeof Array.prototype ? {} : State<T[P]>) } & wrapInValue<customArrayMethods<T>>; // (P extends keyof typeof Array.prototype ? {} : State<T[P]>)
+export type StateObjectChildren<T extends StateObject<unknown>> = { [P in keyof T]: (P extends keyof typeof Object.prototype ? {} : State<T[P]>) }; // (P extends keyof typeof Object.prototype ? {} : State<T[P]>)
+export type StateChildren<T> = {} & (T extends StateObject<unknown> ? StateObjectChildren<T> : {}) & (T extends Array<unknown> ? StateArrayChildren<T> : {});
 export type State<T> = {} & (T extends { [Value]: any } ? T : (StateSymboles<T> & StateChildren<T>));
 
-export function createState<T>(initialValue: T): State<T>;
-export function createState<T>(initialValue: State<T>): State<T>;
-export function createState<T>(callback: () => T, dependens: Array<State<any>>): State<T>;
-export function createState<T>(arg1: (() => T) | T | State<T>, arg2?: undefined | Array<State<any>>): State<T> {
-  return (arg1 != null && typeof arg1 == "object" && (arg1 as any)[Value] != null) ? arg1 as State<T> : (typeof arg1 == "function" && arg1 instanceof Function && arg2 !== undefined ? createStateFromCallback<T>(arg1 as (() => T), arg2) : createStateFromInitValue<T>(arg1 as unknown as T));
+export function createState<T>(initialValue: T | State<T>): State<T>;
+export function createState<T, D extends Array<unknown>>(callback: (...args: D) => T, dependens: { [K in keyof D]: State<D[K]> }): State<T>;
+export function createState<T, D extends Array<unknown>>(arg1: (...args: D) => T | T, arg2?: null | { [K in keyof D]: State<D[K]> }): State<T> {
+  if (arg1 != null && typeof arg1 == "object" && Value in arg1) return arg1;
+  if (arg1 != null && typeof arg1 == "function" && arg2 != null) return createStateFromCallback<T, D>(arg1, arg2);
+  return createStateFromInitValue<T>(arg1 as unknown as T);
 }
 
 function resolve(value: any, key: string | symbol): any {
@@ -90,7 +100,7 @@ const arrayFuctions: { [key: string]: Function } = {
   push: <T extends Array<unknown>>(target: State<T>, events: { callModified: EventCallback<ModifiedEvent<T>>, callChildModified: EventCallback<ChildModifiedEvent<T>> }) => {
     let { callModified, callChildModified } = events;
     return {
-      [Value]: (...items: Array<any>) => {
+      [Value]: (...items: Array<unknown>) => {
         let oldValue = target[Value];
         let result = target[Value].push(...items);
         items.forEach(item => target[result - 1] = createState(item));
@@ -123,7 +133,7 @@ function createStateFromInitValue<T>(value: T): State<T> {
   let [, callModified] = [target[Modified]] = createEvent<ModifiedEvent<T>>("Modified");
   let [, callChildModified] = [target[ChildModified]] = createEvent<ChildModifiedEvent<T>>("ChildModified");
   if (getType(value) !== "primitive") {
-    Object.entries(value as Object).forEach(([key, keyValue]) => {
+    Object.entries(value as unknown as StateObject<State<unknown>>).forEach(([key, keyValue]) => {
       if (keyValue != null && keyValue[Value] != null) {
         target[key] = keyValue;
         //TODO: Check logic
@@ -193,9 +203,9 @@ function createStateFromInitValue<T>(value: T): State<T> {
   }) as unknown as State<T>;
 }
 
-function createStateFromCallback<T>(callback: () => T, dependens: Array<State<any>>): State<T> {
-  let state = createStateFromInitValue(callback());
-  dependens.forEach(dependen => dependen[Modified].on(() => { state[Value] = callback(); return; }));
+function createStateFromCallback<T, D extends Array<unknown>>(callback: (...args: D) => T, dependens: { [K in keyof D]: State<D[K]> }): State<T> {
+  let state = createStateFromInitValue(callback(...dependens.map(_ => _[Value]) as D));
+  dependens.forEach(dependen => dependen[Modified].on(() => { state[Value] = callback(...dependens.map(_ => _[Value]) as D); return; }));
   return state;
 }
 
