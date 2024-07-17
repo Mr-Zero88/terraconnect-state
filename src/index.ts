@@ -60,11 +60,20 @@ const arrayFuctions: { [key: string]: Function } = {
       }
     };
   },
-  map: <T extends Array<unknown>>(target: State<T>) => {
+  map: <T extends Array<any>>(target: State<T>) => {
     return {
       [Value]: (callback: Parameters<T['map']>[0]) => {
         let state = createState(target[Value].map((_, i, a) => callback(target[i], i, a)));
-        target[Modified].on(() => {
+        target[ChildModified].on((_, key) => {
+          if (typeof key == "string" && key.includes('.')) return;
+          if (isNaN(Number(key))) return;
+          if (target == null || target[Value] == null) return;
+          // state[Value] = target[Value].map((_, i, a) => callback(target[i] ?? _, i, a));
+          let i = Number(key);
+          (state[i] as State<unknown>)[Value] = callback(target[i], i, target[Value]);
+        });
+        target[Modified].on((newValue, oldValue) => {
+          if (target == null || target[Value] == null) return;
           state[Value] = target[Value].map((_, i, a) => callback(target[i], i, a));
         });
         return state;
@@ -164,6 +173,10 @@ function createStateFromInitValue<T>(value: T): State<T> {
       return resolve(target[Value], key) ?? { [Value]: null };
     },
     set: (target, key, newValue) => {
+      if (key == PreserveState) {
+        target[PreserveState] = newValue;
+        return true;
+      }
       if (key !== Value) {
         console.error('You can only set the [Value] property');
         return false;
@@ -173,14 +186,16 @@ function createStateFromInitValue<T>(value: T): State<T> {
         return true;
       if (callSet(newValue, oldValue).some(v => !v))
         return true;
-      if (newValue[Value] == null)
+      if (newValue == null)
+        target[Value] = newValue;
+      else if (newValue[Value] == null)
         target[Value] = newValue;
       else
         target[Value] = newValue[Value];
       if (getType(newValue) !== "primitive") {
         Object.entries(newValue).forEach(([key, keyValue]) => {
           if (target[key] == null) {
-            if ((keyValue as any)[Value] == null) {
+            if ((keyValue as any)?.[Value] == null) {
               target[key] = createStateFromInitValue(keyValue);
               target[key][Modified].on((newValue: any, oldValue: any) => {
                 target[Value][key] = target[key][PreserveState] == null ? target[key][Value] : target[Value][key];
@@ -191,10 +206,15 @@ function createStateFromInitValue<T>(value: T): State<T> {
                 callChildModified(newValue, key + '.' + _key, oldValue);
               });
             } else
-              target[key] = (keyValue as any)[key];
+              target[key] = (keyValue as any)?.[key];
             callChildModified(keyValue as any, key, undefined as any);
-          } else
-            target[key][Value] = keyValue;
+          } else {
+            if ((keyValue as any)?.[Value] == null) {
+              target[key][Value] = keyValue;
+            } else {
+              target[key] = keyValue;
+            }
+          }
         });
       }
       callModified(newValue, oldValue);
