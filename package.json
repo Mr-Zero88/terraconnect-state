@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "install": "pnpm build"
+    "prepare": "pnpm build"
   },
   "keywords": [],
   "author": "Mr.Zero88",
