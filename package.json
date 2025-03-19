@@ -13,5 +13,6 @@
   "license": "ISC",
   "devDependencies": {
     "typescript": "^5.5.4"
-  }
+  },
+  "types": "./dist/index.d.ts"
 }
